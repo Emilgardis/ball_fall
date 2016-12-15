@@ -1,0 +1,13 @@
+[package]
+name = "ball_fall"
+version = "0.1.0"
+authors = ["mechaxl"]
+
+[dependencies]
+cgmath = "*"
+rand = "*"
+nphysics3d = "*"
+nalgebra = "0.9.*"
+ncollide = "*"
+obj-rs = "*"
+amethyst = { git = "https://github.com/amethyst/amethyst.git", branch = "develop" }
