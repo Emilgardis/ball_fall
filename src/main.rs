@@ -73,7 +73,13 @@ impl Processor<Arc<Mutex<Context>>> for BallFallProcessor {
         physics_world.0.step(delta_time);
 
         for (ball, local) in (&mut balls, &mut locals).iter() {
-            let position = ball.body.borrow().position().translation;
+            let mut body = ball.body.borrow_mut();
+
+            if !body.is_active() {
+                body.apply_central_impulse(Vector3::new(100.0 * rand::random::<f32>(), 100.0 * rand::random::<f32>(), 100.0));
+            }
+
+            let position = body.position().translation;
             local.translation[0] = position[0];
             local.translation[1] = position[1];
             local.translation[2] = position[2];
@@ -150,7 +156,7 @@ impl State for BallFall {
             physics_world.0.add_rigid_body(rb);
         }
 
-        for i in 0..100 {
+        for i in 0..300 {
             let mut rb = RigidBody::new_dynamic(PhysicsBall::new(1.0), 1.0, 0.3, 0.6);
             rb.append_translation(&Vector3::new(rand::random::<f32>(), rand::random::<f32>(), i as f32 * 5.0));
             let handle = physics_world.0.add_rigid_body(rb);
