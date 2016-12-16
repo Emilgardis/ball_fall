@@ -31,6 +31,20 @@ struct PhysicsWorld(nphysics_world::World<f32>);
 unsafe impl Sync for PhysicsWorld { }
 unsafe impl Send for PhysicsWorld { }
 
+impl std::ops::Deref for PhysicsWorld {
+    type Target = nphysics_world::World<f32>;
+    
+    fn deref<'a>(&'a self) -> &'a Self::Target {
+        &self.0
+    }
+}
+impl std::ops::DerefMut for PhysicsWorld {
+
+    fn deref_mut<'a>(&'a mut self) -> &'a mut Self::Target {
+        &mut self.0
+    }
+}
+
 struct Ball {
     pub body: RigidBodyHandle<f32>,
 }
@@ -70,7 +84,7 @@ impl Processor<Arc<Mutex<Context>>> for BallFallProcessor {
 
         let delta_time = ctx.delta_time.subsec_nanos() as f32 / 1.0e9;
 
-        physics_world.0.step(delta_time);
+        physics_world.step(delta_time);
 
         for (ball, local) in (&mut balls, &mut locals).iter() {
             let mut body = ball.body.borrow_mut();
@@ -136,11 +150,11 @@ impl State for BallFall {
 
         // Set up physics world
         let mut physics_world = PhysicsWorld(nphysics_world::World::new());
-        physics_world.0.set_gravity(Vector3::new(0.0, 0.0, -9.81));
+        physics_world.set_gravity(Vector3::new(0.0, 0.0, -9.81));
 
         let mut rb = RigidBody::new_static(PhysicsBall::new(1.0), 0.3, 0.6);
         rb.append_translation(&Vector3::new(0.1, 0.0, -5.0));
-        physics_world.0.add_rigid_body(rb);
+        physics_world.add_rigid_body(rb);
 
         let planes = vec![
             (Vector3::new( 1.0,  0.0, 0.0), Vector3::new(-15.0,   0.0,   0.0)),
@@ -153,13 +167,13 @@ impl State for BallFall {
         for plane in planes.iter() {
             let mut rb = RigidBody::new_static(Plane::new(plane.0), 0.3, 0.6);
             rb.append_translation(&plane.1);
-            physics_world.0.add_rigid_body(rb);
+            physics_world.add_rigid_body(rb);
         }
 
         for i in 0..300 {
             let mut rb = RigidBody::new_dynamic(PhysicsBall::new(1.0), 1.0, 0.3, 0.6);
             rb.append_translation(&Vector3::new(rand::random::<f32>(), rand::random::<f32>(), i as f32 * 5.0));
-            let handle = physics_world.0.add_rigid_body(rb);
+            let handle = physics_world.add_rigid_body(rb);
 
             let ball = Ball::new(handle);
             world.create_now()
