@@ -21,29 +21,15 @@ use amethyst::context::asset_manager::{Mesh, Texture};
 use nalgebra::Vector3;
 use ncollide::shape::{Ball as PhysicsBall, Plane};
 use nphysics3d::object::{RigidBody, RigidBodyHandle};
-use nphysics3d::world::World as PhysicsWorld;
+use nphysics3d::world as nphysics_world;
 
 
 struct BallFall;
 
-struct PhysicsWorldRef {
-    pub world: PhysicsWorld<f32>
-}
+struct PhysicsWorld(nphysics_world::World<f32>);
 
-impl PhysicsWorldRef {
-    pub fn new(world: PhysicsWorld<f32>) -> PhysicsWorldRef {
-        PhysicsWorldRef {
-            world: world
-        }
-    }
-}
-
-impl Component for PhysicsWorldRef {
-    type Storage = VecStorage<PhysicsWorldRef>;
-}
-
-unsafe impl Sync for PhysicsWorldRef { }
-unsafe impl Send for PhysicsWorldRef { }
+unsafe impl Sync for PhysicsWorld { }
+unsafe impl Send for PhysicsWorld { }
 
 struct Ball {
     pub body: RigidBodyHandle<f32>,
@@ -75,18 +61,16 @@ impl Processor<Arc<Mutex<Context>>> for BallFallProcessor {
         let ctx = ctx.lock().unwrap();
         let (mut balls,
              mut locals,
-             mut worlds) = arg.fetch(|w| (
+             mut physics_world) = arg.fetch(|w| (
                  w.write::<Ball>(),
                  w.write::<LocalTransform>(),
-                 w.write::<PhysicsWorldRef>()
+                 w.write_resource::<PhysicsWorld>()
         ));
 
 
         let delta_time = ctx.delta_time.subsec_nanos() as f32 / 1.0e9;
 
-        for world in (&mut worlds).iter() {
-            world.world.step(delta_time);
-        }
+        physics_world.0.step(delta_time);
 
         for (ball, local) in (&mut balls, &mut locals).iter() {
             let position = ball.body.borrow().position().translation;
@@ -145,12 +129,12 @@ impl State for BallFall {
         let sphere = Renderable::new("sphere", "blue", "green");
 
         // Set up physics world
-        let mut physics_world_ref = PhysicsWorldRef::new(PhysicsWorld::new());
-        physics_world_ref.world.set_gravity(Vector3::new(0.0, 0.0, -9.81));
+        let mut physics_world = PhysicsWorld(nphysics_world::World::new());
+        physics_world.0.set_gravity(Vector3::new(0.0, 0.0, -9.81));
 
         let mut rb = RigidBody::new_static(PhysicsBall::new(1.0), 0.3, 0.6);
         rb.append_translation(&Vector3::new(0.1, 0.0, -5.0));
-        physics_world_ref.world.add_rigid_body(rb);
+        physics_world.0.add_rigid_body(rb);
 
         let planes = vec![
             (Vector3::new( 1.0,  0.0, 0.0), Vector3::new(-15.0,   0.0,   0.0)),
@@ -163,13 +147,13 @@ impl State for BallFall {
         for plane in planes.iter() {
             let mut rb = RigidBody::new_static(Plane::new(plane.0), 0.3, 0.6);
             rb.append_translation(&plane.1);
-            physics_world_ref.world.add_rigid_body(rb);
+            physics_world.0.add_rigid_body(rb);
         }
 
         for i in 0..100 {
             let mut rb = RigidBody::new_dynamic(PhysicsBall::new(1.0), 1.0, 0.3, 0.6);
             rb.append_translation(&Vector3::new(rand::random::<f32>(), rand::random::<f32>(), i as f32 * 5.0));
-            let handle = physics_world_ref.world.add_rigid_body(rb);
+            let handle = physics_world.0.add_rigid_body(rb);
 
             let ball = Ball::new(handle);
             world.create_now()
@@ -180,9 +164,7 @@ impl State for BallFall {
                 .build();
         }
 
-        world.create_now()
-            .with(physics_world_ref)
-            .build();
+        world.add_resource(physics_world);
     }
 
     fn update(&mut self, ctx: &mut Context, _: &mut World) -> Trans {
@@ -215,7 +197,6 @@ fn main() {
                    .register::<Camera>()
                    .with::<BallFallProcessor>(BallFallProcessor, "ball_fall_processor", 1)
                    .register::<Ball>()
-                   .register::<PhysicsWorldRef>()
                    .with::<TransformProcessor>(TransformProcessor::new(), "transform_processor", 2)
                    .register::<LocalTransform>()
                    .register::<Transform>()
